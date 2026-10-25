@@ -1,6 +1,7 @@
 """Restaurant Insights AI — synthetic-data portfolio demo."""
 from pathlib import Path
 import json
+import html
 import os
 import pandas as pd
 import plotly.express as px
@@ -9,49 +10,17 @@ import streamlit as st
 st.set_page_config(page_title="Restaurant Insights AI", page_icon="🍽️", layout="wide")
 st.markdown("""
 <style>
-.block-container {
-    padding-top: 1.6rem;
-    max-width: 1200px;
-}
-
-.hero {
-    background: linear-gradient(115deg, #133d38, #246b58);
-    color: white;
-    padding: 26px 30px;
-    border-radius: 17px;
-    margin-bottom: 16px;
-}
-
-.hero h1 {
-    color: white;
-    margin: 0;
-}
-
-.hero p {
-    color: #d9eee7;
-    margin: 7px 0 0;
-}
-
-.box {
-    background: #edf7f2;
-    color: #1f2937 !important;
-    padding: 20px;
-    border-radius: 12px;
-    border-left: 5px solid #24795c;
-}
-
-.box * {
-    color: #1f2937 !important;
-}
-
-.box h3 {
-    color: #14532d !important;
-}
-
-.foot {
-    color: #64746e;
-    font-size: 0.88rem;
-}
+.block-container {padding-top: 1.6rem; max-width: 1200px;}
+.hero {background: linear-gradient(115deg, #133d38, #246b58); color: white;
+       padding: 26px 30px; border-radius: 17px; margin-bottom: 16px;}
+.hero h1 {color: white; margin: 0;}
+.hero p {color: #d9eee7; margin: 7px 0 0;}
+.box {background: #edf7f2; color: #1f2937 !important; padding: 24px;
+      border-radius: 12px; border-left: 5px solid #24795c; line-height: 1.65;}
+.box, .box * {color: #1f2937 !important;}
+.box h3 {color: #14532d !important; margin-top: 0;}
+.box b {font-weight: 700;}
+.foot {color: #64746e; font-size: .88rem;}
 </style>
 """, unsafe_allow_html=True)
 st.markdown('<div class="hero"><h1>Restaurant Insights AI</h1><p>From operational metrics to manager-ready decisions</p></div>',unsafe_allow_html=True)
@@ -115,7 +84,7 @@ def local_brief(f):
         "evidence_limit": "Weekly totals cannot identify specific shifts, staffing mismatches, or causes. Shift-level records and manager input are needed.",
     }
 
-SYSTEM = """You are an operations analytics communication assistant. Explain VERIFIED numeric facts to a nontechnical restaurant store manager. You are given a JSON object of precomputed, synthetic, weekly restaurant metrics. Never invent numbers, drivers, shifts, weather, promotions, guest complaints, or causal conclusions. Clearly separate observed changes from hypotheses. Do not assert that labor cost ratio changes necessarily mean labor dollars rose. Give one modest, practical next investigation and say what further data would be needed. Do not provide financial projections. Respond with ONLY a valid JSON object containing exactly these five string keys: headline, what_happened, why_it_matters, recommended_action, evidence_limit. Keep each field short, conversational and accessible; no markdown."""
+SYSTEM = """You are an operations analytics communication assistant. Explain VERIFIED numeric facts to a nontechnical restaurant store manager. You are given a JSON object of precomputed, synthetic, weekly restaurant metrics. Never invent numbers, drivers, shifts, weather, promotions, guest complaints, or causal conclusions. Clearly separate observed changes from hypotheses. Do not assert that labor cost ratio changes necessarily mean labor dollars rose. Give one modest, practical next investigation and say what further data would be needed. Do not provide financial projections. Respond with ONLY a valid JSON object containing exactly these five string keys: headline, what_happened, why_it_matters, recommended_action, evidence_limit. Keep each field short, conversational and accessible; no markdown. Limits: headline at most 20 words, what_happened at most 55 words, why_it_matters at most 40 words, recommended_action at most 45 words, evidence_limit at most 40 words. Use plain English suitable for a busy restaurant manager. Avoid speculation about specific causes unless explicitly labeled as a hypothesis."""
 
 def get_key():
     try:
@@ -153,7 +122,10 @@ with st.sidebar:
     key = get_key()
     model = st.selectbox("Claude model", ["claude-sonnet-4-5", "claude-haiku-4-5"])
     st.caption("API key is read from Streamlit Secrets or environment variables; never enter it in the app or commit it to GitHub.")
-    st.success("API key configured") if key else st.info("No API key detected. Reliable offline summaries remain available.")
+    if key:
+        st.success("API key configured")
+    else:
+        st.info("No API key detected. Reliable offline summaries remain available.")
 
 rows = df[df.store == store].set_index("week")
 if not {"Prior", "Current"}.issubset(rows.index):
@@ -191,10 +163,23 @@ if audience == "Store manager":
         st.caption("Showing a deterministic, calculation-grounded briefing (not AI-generated).")
     else:
         st.caption("Claude-generated explanation based on validated weekly metrics. Review before operational use.")
-    st.markdown(f"<div class='box'><h3>{brief['headline']}</h3><b>What happened</b><p>{brief['what_happened']}</p><b>Why it matters</b><p>{brief['why_it_matters']}</p><b>Suggested next step</b><p>{brief['recommended_action']}</p></div>",unsafe_allow_html=True)
+    # Escape LLM-generated text before inserting it into HTML.
+    safe = {name: html.escape(value) for name, value in brief.items()}
+    st.markdown(
+        f"<div class='box'><h3>{safe['headline']}</h3>"
+        f"<b>What happened</b><p>{safe['what_happened']}</p>"
+        f"<b>Why it matters</b><p>{safe['why_it_matters']}</p>"
+        f"<b>Suggested next step</b><p>{safe['recommended_action']}</p></div>",
+        unsafe_allow_html=True,
+    )
     st.info("**What we don't know yet:** " + brief["evidence_limit"])
     st.markdown("#### What the numbers show")
-    st.write(f"Transactions: **{prior.transactions:,.0f} → {current.transactions:,.0f}** ({signed(f['transactions_change_pct'])}). Average ticket: **${f['average_ticket_prior_usd']:.2f} → ${f['average_ticket_current_usd']:.2f}**.")
+    st.write(
+        f"Transactions: {prior.transactions:,.0f} → {current.transactions:,.0f} "
+        f"({signed(f['transactions_change_pct'])}). "
+        f"Average ticket: ${f['average_ticket_prior_usd']:.2f} → "
+        f"${f['average_ticket_current_usd']:.2f}."
+    )
 else:
     st.markdown("### Operations diagnostic")
     chart = pd.DataFrame({"Week":["Prior", "Current"], "Sales":[prior.sales,current.sales], "Labor expense":[prior.labor_cost,current.labor_cost], "Food expense":[prior.food_cost,current.food_cost]})
