@@ -262,27 +262,329 @@ if audience == "Store manager":
         f"${f['average_ticket_current_usd']:.2f}."
     )
 else:
+    # ---------------------------------------
+    # VP / Operations Dashboard
+    # ---------------------------------------
+
     st.markdown("### Operations diagnostic")
-    chart = pd.DataFrame({"Week":["Prior", "Current"], "Sales":[prior.sales,current.sales], "Labor expense":[prior.labor_cost,current.labor_cost], "Food expense":[prior.food_cost,current.food_cost]})
-    st.plotly_chart(px.bar(chart,x="Week",y=["Sales","Labor expense","Food expense"],barmode="group",title="Sales and direct expense trends"),use_container_width=True)
-    st.write(f"**Sales:** {signed(f['sales_change_pct'])} · **Transactions:** {signed(f['transactions_change_pct'])} · **Labor dollars:** {signed(f['labor_spend_change_pct'])} · **Labor share:** {signed(f['labor_ratio_change_pp'],' pp')}")
-    current_all = df[df.week == "Current"].copy()
-    current_all["Labor %"] = (current_all.labor_cost/current_all.sales*100).round(1)
-    current_all["Food %"] = (current_all.food_cost/current_all.sales*100).round(1)
-    st.dataframe(current_all[["store","sales","Labor %","Food %","service_minutes","transactions"]].rename(columns={"store":"Restaurant","sales":"Sales ($)","service_minutes":"Service (min)","transactions":"Transactions"}),hide_index=True,use_container_width=True)
-    st.markdown("**Investigation:** Check whether a higher labor ratio is driven by higher labor dollars, lower sales, or both. Weekly aggregates cannot pinpoint causes.")
-    st.markdown("**Measure improvement:** Compare labor share, transactions per labor hour (if available), service time and guest feedback against a similar restaurant after an operational change.")
+
+    # ---------------------------------------
+    # Executive Insights
+    # ---------------------------------------
+
+    st.markdown("### Executive Insights")
+
+    st.caption(
+        "Automatically identified operational signals across restaurants. "
+        "These are investigation priorities, not confirmed root causes."
+    )
+
+    current_stores = df[df["week"] == "Current"].copy()
+    prior_stores = df[df["week"] == "Prior"].copy()
+
+    # Calculate labor cost percentage
+    current_stores["labor_pct"] = (
+        current_stores["labor_cost"]
+        / current_stores["sales"]
+        * 100
+    )
+
+    # Restaurant with highest labor cost percentage
+    highest_labor = current_stores.loc[
+        current_stores["labor_pct"].idxmax()
+    ]
+
+    # Restaurant with slowest average service time
+    slowest_service = current_stores.loc[
+        current_stores["service_minutes"].idxmax()
+    ]
+
+    # Calculate week-over-week sales changes
+    sales_comparison = current_stores[
+        ["store", "sales"]
+    ].merge(
+        prior_stores[["store", "sales"]],
+        on="store",
+        suffixes=("_current", "_prior")
+    )
+
+    # Avoid division by zero
+    sales_comparison = sales_comparison[
+        sales_comparison["sales_prior"] > 0
+    ].copy()
+
+    sales_comparison["sales_change_pct"] = (
+        (
+            sales_comparison["sales_current"]
+            / sales_comparison["sales_prior"]
+        ) - 1
+    ) * 100
+
+    # Restaurant with largest sales decline
+    largest_decline = (
+        sales_comparison.loc[
+            sales_comparison["sales_change_pct"].idxmin()
+        ]
+        if not sales_comparison.empty
+        else None
+    )
+
+    # ---------------------------------------
+    # Display Executive Insights
+    # ---------------------------------------
+
+    insight1, insight2, insight3 = st.columns(3)
+
+    with insight1:
+        st.metric(
+            "Highest labor cost %",
+            f"{highest_labor['labor_pct']:.1f}%"
+        )
+
+        st.caption(
+            f"{highest_labor['store']} has the highest "
+            "labor expense relative to sales."
+        )
+
+    with insight2:
+        st.metric(
+            "Slowest service time",
+            f"{slowest_service['service_minutes']:.1f} min"
+        )
+
+        st.caption(
+            f"{slowest_service['store']} has the longest "
+            "average service time."
+        )
+
+    with insight3:
+        if largest_decline is not None:
+            sales_change = largest_decline["sales_change_pct"]
+
+            st.metric(
+                "Largest sales decline"
+                if sales_change < 0
+                else "Lowest sales growth",
+                f"{sales_change:+.1f}%"
+            )
+
+            st.caption(
+                f"{largest_decline['store']} recorded "
+                "the lowest week-over-week sales change."
+            )
+        else:
+            st.metric("Sales change", "N/A")
+            st.caption("Insufficient data for comparison.")
+
+    # Highlight restaurants with overlapping warning signals
+    if highest_labor["store"] == slowest_service["store"]:
+        st.warning(
+            f"**Priority for investigation: {highest_labor['store']}** "
+            "has both the highest labor cost percentage and "
+            "the slowest average service time among the restaurants. "
+            "Review staffing schedules, transaction volumes, and "
+            "service processes to understand these patterns."
+        )
+    else:
+        st.info(
+            "**Executive recommendation:** Prioritize restaurants "
+            "showing multiple operational warning signals. "
+            "Review staffing schedules, order volume, and service "
+            "processes before recommending operational changes."
+        )
+
+    st.divider()
+
+    # ---------------------------------------
+    # Sales and Expense Trends
+    # ---------------------------------------
+
+    chart = pd.DataFrame({
+        "Week": ["Prior", "Current"],
+        "Sales": [prior.sales, current.sales],
+        "Labor expense": [
+            prior.labor_cost,
+            current.labor_cost
+        ],
+        "Food expense": [
+            prior.food_cost,
+            current.food_cost
+        ]
+    })
+
+    fig = px.bar(
+        chart,
+        x="Week",
+        y=["Sales", "Labor expense", "Food expense"],
+        barmode="group",
+        title="Sales and direct expense trends",
+        labels={
+            "value": "Amount ($)",
+            "variable": "Metric"
+        }
+    )
+
+    st.plotly_chart(
+        fig,
+        use_container_width=True
+    )
+
+    # ---------------------------------------
+    # Selected Restaurant Performance
+    # ---------------------------------------
+
+    st.markdown("#### Selected restaurant performance")
+
+    st.write(
+        f"**Sales:** {signed(f['sales_change_pct'])} · "
+        f"**Transactions:** {signed(f['transactions_change_pct'])} · "
+        f"**Labor dollars:** {signed(f['labor_spend_change_pct'])} · "
+        f"**Labor share:** {signed(f['labor_ratio_change_pp'], ' pp')}"
+    )
+
+    # ---------------------------------------
+    # Restaurant Comparison Table
+    # ---------------------------------------
+
+    st.markdown("#### Restaurant comparison")
+
+    current_all = df[df["week"] == "Current"].copy()
+
+    current_all["Labor %"] = (
+        current_all["labor_cost"]
+        / current_all["sales"]
+        * 100
+    ).round(1)
+
+    current_all["Food %"] = (
+        current_all["food_cost"]
+        / current_all["sales"]
+        * 100
+    ).round(1)
+
+    comparison_table = current_all[
+        [
+            "store",
+            "sales",
+            "Labor %",
+            "Food %",
+            "service_minutes",
+            "transactions"
+        ]
+    ].rename(
+        columns={
+            "store": "Restaurant",
+            "sales": "Sales ($)",
+            "service_minutes": "Service (min)",
+            "transactions": "Transactions"
+        }
+    )
+
+    st.dataframe(
+        comparison_table,
+        hide_index=True,
+        use_container_width=True
+    )
+
+    # ---------------------------------------
+    # Operational Recommendations
+    # ---------------------------------------
+
+    st.markdown("#### Investigation and measurement")
+
+    st.markdown(
+        "**Investigation:** Check whether a higher labor ratio "
+        "is driven by higher labor dollars, lower sales, or both. "
+        "Weekly aggregates cannot pinpoint causes."
+    )
+
+    st.markdown(
+        "**Measure improvement:** Compare labor share, "
+        "transactions per labor hour (if available), service time, "
+        "and guest feedback against a comparable restaurant "
+        "after an operational change."
+    )
+
+
+# ---------------------------------------
+# Ask a Business Question
+# ---------------------------------------
 
 st.divider()
+
 st.markdown("### Ask a business question")
-question = st.selectbox("Example question",["Why did labor cost percentage change?","What happened to sales?","Is service getting slower?"])
+
+question = st.selectbox(
+    "Example question",
+    [
+        "Why did labor cost percentage change?",
+        "What happened to sales?",
+        "Is service getting slower?"
+    ]
+)
+
 if question.startswith("Why"):
-    st.write(f"Labor / sales moved from **{f['labor_ratio_prior_pct']:.1f}%** to **{f['labor_ratio_current_pct']:.1f}%** ({signed(f['labor_ratio_change_pp'],' pp')}). Labor spending changed **{signed(f['labor_spend_change_pct'])}**, while sales changed **{signed(f['sales_change_pct'])}**. Shift-level labor and demand data would help explain the pattern.")
+
+    st.write(
+        f"Labor / sales moved from "
+        f"**{f['labor_ratio_prior_pct']:.1f}%** to "
+        f"**{f['labor_ratio_current_pct']:.1f}%** "
+        f"({signed(f['labor_ratio_change_pp'], ' pp')}). "
+        f"Labor spending changed "
+        f"**{signed(f['labor_spend_change_pct'])}**, "
+        f"while sales changed "
+        f"**{signed(f['sales_change_pct'])}**. "
+        "Shift-level labor and demand data would help "
+        "explain the pattern."
+    )
+
 elif question.startswith("What"):
-    st.write(f"Sales moved from **${prior.sales:,.0f}** to **${current.sales:,.0f}** ({signed(f['sales_change_pct'])}). Transactions changed **{signed(f['transactions_change_pct'])}** and average ticket moved from **${f['average_ticket_prior_usd']:.2f}** to **${f['average_ticket_current_usd']:.2f}**. We would next investigate dayparts, promotions and menu mix.")
+
+    st.write(
+        f"Sales moved from **${prior.sales:,.0f}** "
+        f"to **${current.sales:,.0f}** "
+        f"({signed(f['sales_change_pct'])}). "
+        f"Transactions changed "
+        f"**{signed(f['transactions_change_pct'])}** "
+        f"and average ticket moved from "
+        f"**${f['average_ticket_prior_usd']:.2f}** "
+        f"to **${f['average_ticket_current_usd']:.2f}**. "
+        "We would next investigate dayparts, promotions, "
+        "and menu mix."
+    )
+
 else:
-    st.write(f"Average service time moved from **{prior.service_minutes:.1f}** to **{current.service_minutes:.1f} minutes** ({signed(f['service_time_change_min'],' min')}). This doesn't establish why it changed; order-level timestamps would be needed.")
+
+    st.write(
+        f"Average service time moved from "
+        f"**{prior.service_minutes:.1f}** to "
+        f"**{current.service_minutes:.1f} minutes** "
+        f"({signed(f['service_time_change_min'], ' min')}). "
+        "This doesn't establish why it changed; "
+        "order-level timestamps would be needed."
+    )
+
+
+# ---------------------------------------
+# Data, Methodology and Responsible AI
+# ---------------------------------------
+
 with st.expander("Data, methodology and responsible AI"):
-    st.write("The CSV contains synthetic weekly observations. Python calculates all metrics before an optional Claude call. Claude is instructed to explain those facts without inventing causes; its text should still be reviewed. No real customer, employee or company data is used. This demo is not a predictive model, a causal study, or an automated decision system.")
+
+    st.write(
+        "The CSV contains synthetic weekly observations. "
+        "Python calculates all metrics before an optional Claude call. "
+        "Claude is instructed to explain those facts without "
+        "inventing causes; its text should still be reviewed. "
+        "No real customer, employee or company data is used. "
+        "This demo is not a predictive model, a causal study, "
+        "or an automated decision system."
+    )
+
     st.json(f)
-    st.dataframe(rows.reset_index(),hide_index=True)
+
+    st.dataframe(
+        rows.reset_index(),
+        hide_index=True
+    )
+    
