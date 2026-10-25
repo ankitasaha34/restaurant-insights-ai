@@ -7,7 +7,21 @@ import plotly.express as px
 import streamlit as st
 
 st.set_page_config(page_title="Restaurant Insights AI", page_icon="🍽️", layout="wide")
-st.markdown("""<style>.block-container{padding-top:1.6rem;max-width:1200px}.hero{background:linear-gradient(115deg,#133d38,#246b58);color:white;padding:26px 30px;border-radius:17px;margin-bottom:16px}.hero h1{color:white;margin:0}.hero p{color:#d9eee7;margin:7px 0 0}.box{background:#edf7f2;padding:20px;border-radius:12px;border-left:5px solid #24795c}.foot{color:#64746e;font-size:.88rem}</style>""",unsafe_allow_html=True)
+st.markdown("""<style>.block-container{padding-top:1.6rem;max-width:1200px}.hero{background:linear-gradient(115deg,#133d38,#246b58);color:white;padding:26px 30px;border-radius:17px;margin-bottom:16px}.hero h1{color:white;margin:0}.hero p{color:#d9eee7;margin:7px 0 0}.box {
+    background: #edf7f2;
+    color: #1f2937 !important;
+    padding: 20px;
+    border-radius: 12px;
+    border-left: 5px solid #24795c;
+}
+
+.box * {
+    color: #1f2937 !important;
+}
+
+.box h3 {
+    color: #14532d !important;
+}
 st.markdown('<div class="hero"><h1>Restaurant Insights AI</h1><p>From operational metrics to manager-ready decisions</p></div>',unsafe_allow_html=True)
 st.caption("INDEPENDENT PORTFOLIO DEMO • 100% SYNTHETIC RESTAURANT DATA • Not affiliated with Farmer Boys")
 
