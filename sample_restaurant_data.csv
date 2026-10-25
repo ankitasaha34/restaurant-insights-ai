@@ -1,0 +1,17 @@
+store,week,sales,labor_cost,food_cost,service_minutes,transactions
+Restaurant 01,Prior,37200,9300,11532,6.2,2400
+Restaurant 01,Current,37162,9531,11117,6.9,2367
+Restaurant 02,Prior,38400,9600,11904,6.2,2477
+Restaurant 02,Current,36695,9987,11814,6.0,2337
+Restaurant 03,Prior,39600,9900,12276,6.2,2555
+Restaurant 03,Current,39903,10435,11820,6.4,2542
+Restaurant 04,Prior,40800,10200,12648,6.2,2632
+Restaurant 04,Current,41691,10549,13206,6.1,2655
+Restaurant 05,Prior,42000,10500,13020,6.2,2710
+Restaurant 05,Current,41060,10430,12736,7.0,2615
+Restaurant 06,Prior,43200,10800,13392,6.2,2787
+Restaurant 06,Current,43679,11587,13388,6.8,2782
+Restaurant 07,Prior,44400,11100,13764,6.2,2865
+Restaurant 07,Current,41736,12876,13356,7.4,2658
+Restaurant 08,Prior,45600,11400,14136,6.2,2942
+Restaurant 08,Current,43988,11570,13866,6.8,2802
